@@ -1,101 +1,402 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { QRScanner } from "@/components/ui/qr-scanner";
+import Stepper from "@/components/ui/stepper";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  teamNameSchema,
+  kfidSchema,
+  TeamRegisterResponse,
+} from "@/lib/schemas";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+const steps = ["Team Name", "Member 1", "Member 2", "Member 3"];
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+const Home = () => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const [kfids, setKfids] = useState<string[]>([]);
+  const [currentKfid, setCurrentKfid] = useState("");
+  const [registered, setRegistered] = useState<TeamRegisterResponse | null>(
+    null
+  );
+  const { toast } = useToast();
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    if (currentStep > 0) {
+      setCurrentKfid(kfids[currentStep - 1] || "");
+    }
+  }, [currentStep, kfids]);
+
+  const handleScan = (result: string) => {
+    try {
+      const { kfid } = kfidSchema.parse({ kfid: result });
+      const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
+      if (otherKfids.includes(kfid)) {
+        toast({
+          title: "Duplicate KFID",
+          description: "This team member has already been added",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const newKfids = [...kfids];
+      newKfids[currentStep - 1] = kfid;
+      setKfids(newKfids);
+      setCurrentKfid(kfid);
+      setScanning(false);
+    } catch (error) {
+      console.error(error);
+      setErrors({ kfid: "Invalid KFID format" });
+      toast({
+        title: "Invalid KFID",
+        description: "Please try scanning again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleManualEntry = (value: string) => {
+    try {
+      const { kfid } = kfidSchema.parse({ kfid: value });
+      const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
+      if (otherKfids.includes(kfid)) {
+        setErrors({ kfid: "This team member has already been added" });
+        return;
+      }
+
+      const newKfids = [...kfids];
+      newKfids[currentStep - 1] = kfid;
+      setKfids(newKfids);
+      setCurrentKfid("");
+      setCurrentStep((prev) => prev + 1);
+      setErrors({});
+    } catch (error) {
+      console.error(error);
+      setErrors({ kfid: "Invalid KFID format" });
+    }
+  };
+
+  const handleTeamNameSubmit = () => {
+    try {
+      teamNameSchema.parse({ teamName });
+      setCurrentStep(1);
+      setErrors({});
+    } catch (error) {
+      console.error(error);
+      setErrors({ teamName: "Team name must be at least 3 characters" });
+    }
+  };
+
+  const handleRegister = async () => {
+    try {
+      console.log({
+        team_name: teamName,
+        kfids,
+      });
+      const response = await fetch(
+        "https://glados.zeedonk-ratio.ts.net/api/teams/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": "123",
+          },
+          body: JSON.stringify({
+            team_name: teamName,
+            kfids,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Registration failed");
+
+      const data: TeamRegisterResponse = await response.json();
+      setRegistered(data);
+      toast({
+        title: "Team Registered!",
+        description: `Team ID: ${data.team_id}`,
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Registration Failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // const goToNextStep = () => {
+  //   if (currentStep < steps.length - 1) {
+  //     if (currentStep > 0 && !kfids[currentStep - 1]) {
+  //       toast({
+  //         title: "Missing KFID",
+  //         description: "Please enter or scan a KFID first",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
+  //     setCurrentStep((prev) => prev + 1);
+  //     setCurrentKfid("");
+  //   }
+  // };
+
+  const goToPrevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+      setErrors({});
+    }
+  };
+
+  const stepperSteps = steps.map((title, index) => ({
+    title,
+    isCompleted: index < currentStep,
+    isCurrent: index === currentStep,
+  }));
+
+  if (registered) {
+    return (
+      <div className="container max-w-2xl mx-auto p-4 space-y-4">
+        <h1 className="text-2xl font-bold text-center">
+          Registration Complete!
+        </h1>
+        <div className="p-4 border rounded-lg space-y-2">
+          <p>
+            <strong>Team ID:</strong> {registered.team_id}
+          </p>
+          <p>
+            <strong>Password:</strong> {registered.password}
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pt-12 px-4 bg-background py-8">
+      <div className="container max-w-2xl mx-auto space-y-8">
+        <div className="text-center space-y-4">
+          <div className="relative grid place-items-center mx-auto">
+            <Image
+              src="/team-logo.png"
+              alt="Team Registration"
+              width={200}
+              height={200}
+              className="object-contain w-48"
+              priority
+            />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Team Registration
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Register your team for the competition
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-8 shadow-sm">
+          <Stepper steps={stepperSteps} />
+
+          {/* Show current KFIDs with improved styling */}
+          {kfids.length > 0 && (
+            <div className="mt-12 p-4 rounded-md bg-muted/20 backdrop-blur-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <svg
+                  className="w-4 h-4 text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <h3 className="text-sm font-medium">Current Team Members</h3>
+              </div>
+              <div className="space-y-2">
+                {kfids.map((kfid, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 rounded bg-background/50"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      Member {index + 1}
+                    </span>
+                    <span className="font-mono text-sm font-medium">
+                      {kfid}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 space-y-6">
+            {currentStep === 0 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-base font-medium">
+                    What&apos;s your team name?
+                  </label>
+                  <Input
+                    placeholder="Enter team name"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    className={cn(
+                      "text-lg py-6 px-4 bg-background/50 backdrop-blur-sm border-none ring-offset-background transition-all duration-200",
+                      "placeholder:text-muted-foreground/50",
+                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      errors.teamName && "ring-2 ring-destructive"
+                    )}
+                  />
+                  {errors.teamName && (
+                    <p className="text-sm text-destructive">
+                      {errors.teamName}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleTeamNameSubmit}
+                  className="w-full py-6 text-base"
+                  size="lg"
+                >
+                  Continue
+                </Button>
+              </div>
+            )}
+
+            {[1, 2, 3].includes(currentStep) && (
+              <div className="space-y-6">
+                <div className="rounded-md p-4 bg-card/50">
+                  <h2 className="text-lg font-semibold mb-4">
+                    Team Member {currentStep}
+                    {currentStep === 3 && " (Optional)"}
+                  </h2>
+
+                  {scanning ? (
+                    <>
+                      <div className="bg-card/50 p-4 rounded-md mb-4">
+                        <QRScanner
+                          onScan={handleScan}
+                          onError={(error) => {
+                            console.error(error);
+                            toast({
+                              title: "Scanner Error",
+                              description:
+                                "Please try again or enter KFID manually",
+                              variant: "destructive",
+                            });
+                          }}
+                          isScanning={scanning}
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setScanning(false)}
+                          className="w-full"
+                        >
+                          Cancel Scanning
+                        </Button>
+                        {currentKfid && (
+                          <Button
+                            onClick={() => {
+                              handleManualEntry(currentKfid);
+                              setScanning(false);
+                            }}
+                            className="w-full"
+                          >
+                            Confirm KFID: {currentKfid}
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium leading-none">
+                          KFID
+                        </label>
+                        <Input
+                          placeholder={`Enter KFID for member ${currentStep}`}
+                          value={currentKfid}
+                          onChange={(e) => setCurrentKfid(e.target.value)}
+                          className={cn(
+                            "text-lg py-6 px-4 bg-background/50 backdrop-blur-sm border-none ring-offset-background transition-all duration-200",
+                            "placeholder:text-muted-foreground/50",
+                            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          )}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && currentKfid) {
+                              handleManualEntry(currentKfid);
+                            }
+                          }}
+                        />
+                        {errors.kfid && (
+                          <p className="text-sm text-destructive">
+                            {errors.kfid}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Button
+                          onClick={() => setScanning(true)}
+                          variant="outline"
+                        >
+                          Scan QR Code
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            currentKfid && handleManualEntry(currentKfid)
+                          }
+                          disabled={!currentKfid}
+                        >
+                          Add Member
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={goToPrevStep}
+                    className="w-24"
+                  >
+                    Back
+                  </Button>
+                  {currentStep === 3 && (
+                    <Button onClick={handleRegister} className="w-24">
+                      Skip
+                    </Button>
+                  )}
+                  {currentStep === 2 && kfids.length === 2 && (
+                    <Button onClick={handleRegister} className="w-24">
+                      Finish
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default Home;
