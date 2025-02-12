@@ -97,17 +97,13 @@ const Home = () => {
 
   const handleRegister = async () => {
     try {
-      console.log({
-        team_name: teamName,
-        kfids,
-      });
       const response = await fetch(
-        "https://glados.zeedonk-ratio.ts.net/api/teams/register",
+        `${process.env.NEXT_PUBLIC_API_URL}` + "/api/teams/register",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-API-Key": "123",
+            "X-API-Key": `${process.env.NEXT_PUBLIC_API_KEY}`,
           },
           body: JSON.stringify({
             team_name: teamName,
@@ -133,21 +129,6 @@ const Home = () => {
       });
     }
   };
-
-  // const goToNextStep = () => {
-  //   if (currentStep < steps.length - 1) {
-  //     if (currentStep > 0 && !kfids[currentStep - 1]) {
-  //       toast({
-  //         title: "Missing KFID",
-  //         description: "Please enter or scan a KFID first",
-  //         variant: "destructive",
-  //       });
-  //       return;
-  //     }
-  //     setCurrentStep((prev) => prev + 1);
-  //     setCurrentKfid("");
-  //   }
-  // };
 
   const goToPrevStep = () => {
     if (currentStep > 0) {
