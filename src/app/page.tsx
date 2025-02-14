@@ -28,6 +28,8 @@ const Home = () => {
   const { toast } = useToast();
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const hasMinimumMembers = kfids.filter(Boolean).length >= 2;
+
   useEffect(() => {
     if (currentStep > 0) {
       setCurrentKfid(kfids[currentStep - 1] || "");
@@ -76,7 +78,10 @@ const Home = () => {
       newKfids[currentStep - 1] = kfid;
       setKfids(newKfids);
       setCurrentKfid("");
-      setCurrentStep((prev) => prev + 1);
+      // Only increment step if not on the last member
+      if (currentStep < 3) {
+        setCurrentStep((prev) => prev + 1);
+      }
       setErrors({});
     } catch (error) {
       console.error(error);
@@ -98,33 +103,60 @@ const Home = () => {
   const handleRegister = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}` + "/api/teams/register",
+        "https://lm-backend-api.rycerz.es/api/teams/register",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-API-Key": `${process.env.NEXT_PUBLIC_API_KEY}`,
+            "X-API-Key": "123",
           },
           body: JSON.stringify({
             team_name: teamName,
-            kfids,
+            kfids: kfids.filter(Boolean),
           }),
         }
       );
 
-      if (!response.ok) throw new Error("Registration failed");
+      const data = await response.json();
 
-      const data: TeamRegisterResponse = await response.json();
+      if (!response.ok) {
+        if (data.detail?.includes("KFIDs not registered in KIITFest")) {
+          throw new Error(
+            "Some team members are not registered for KIITFest. Please make sure all members are registered first."
+          );
+        }
+        throw new Error(data.detail || data.message || "Registration failed");
+      }
+
       setRegistered(data);
-      toast({
-        title: "Team Registered!",
-        description: `Team ID: ${data.team_id}`,
+      console.log({
+        title: "Team Registration Successful!",
+        description: (
+          <div className="mt-2 space-y-2">
+            <p>
+              <strong>Team Name:</strong> {teamName}
+            </p>
+            <p>
+              <strong>Team ID:</strong> {data.team_id}
+            </p>
+            <p>
+              <strong>Password:</strong> {data.password}
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Please save these credentials
+            </p>
+          </div>
+        ),
+        duration: 10000, // Show for 10 seconds
       });
     } catch (error) {
       console.error(error);
       toast({
         title: "Registration Failed",
-        description: "Please try again",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Please check your connection and try again",
         variant: "destructive",
       });
     }
@@ -150,6 +182,9 @@ const Home = () => {
           Registration Complete!
         </h1>
         <div className="p-4 border rounded-lg space-y-2">
+          <p>
+            <strong>Team Name:</strong> {teamName}
+          </p>
           <p>
             <strong>Team ID:</strong> {registered.team_id}
           </p>
@@ -360,14 +395,10 @@ const Home = () => {
                   >
                     Back
                   </Button>
-                  {currentStep === 3 && (
+                  {(currentStep === 3 ||
+                    kfids.filter(Boolean).length === 3) && (
                     <Button onClick={handleRegister} className="w-24">
-                      Skip
-                    </Button>
-                  )}
-                  {currentStep === 2 && kfids.length === 2 && (
-                    <Button onClick={handleRegister} className="w-24">
-                      Finish
+                      Register
                     </Button>
                   )}
                 </div>
