@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   teamNameSchema,
-  kfidSchema,
   TeamRegisterResponse,
 } from "@/lib/schemas";
 import { useToast } from "@/hooks/use-toast";
@@ -35,56 +34,38 @@ const Home = () => {
   }, [currentStep, kfids]);
 
   const handleScan = (result: string) => {
-    try {
-      const { kfid } = kfidSchema.parse({ kfid: result });
-      const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
-      if (otherKfids.includes(kfid)) {
-        toast({
-          title: "Duplicate KFID",
-          description: "This team member has already been added",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const newKfids = [...kfids];
-      newKfids[currentStep - 1] = kfid;
-      setKfids(newKfids);
-      setCurrentKfid(kfid);
-      setScanning(false);
-    } catch (error) {
-      console.error(error);
-      setErrors({ kfid: "Invalid KFID format" });
+    const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
+    if (otherKfids.includes(result)) {
       toast({
-        title: "Invalid KFID",
-        description: "Please try scanning again",
+        title: "Duplicate KFID",
+        description: "This team member has already been added",
         variant: "destructive",
       });
+      return;
     }
+
+    const newKfids = [...kfids];
+    newKfids[currentStep - 1] = result;
+    setKfids(newKfids);
+    setCurrentKfid(result);
+    setScanning(false);
   };
 
   const handleManualEntry = (value: string) => {
-    try {
-      const { kfid } = kfidSchema.parse({ kfid: value });
-      const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
-      if (otherKfids.includes(kfid)) {
-        setErrors({ kfid: "This team member has already been added" });
-        return;
-      }
-
-      const newKfids = [...kfids];
-      newKfids[currentStep - 1] = kfid;
-      setKfids(newKfids);
-      setCurrentKfid("");
-      // Only increment step if not on the last member
-      if (currentStep < 3) {
-        setCurrentStep((prev) => prev + 1);
-      }
-      setErrors({});
-    } catch (error) {
-      console.error(error);
-      setErrors({ kfid: "Invalid KFID format" });
+    const otherKfids = kfids.filter((_, idx) => idx !== currentStep - 1);
+    if (otherKfids.includes(value)) {
+      setErrors({ kfid: "This team member has already been added" });
+      return;
     }
+
+    const newKfids = [...kfids];
+    newKfids[currentStep - 1] = value;
+    setKfids(newKfids);
+    setCurrentKfid("");
+    if (currentStep < 3) {
+      setCurrentStep((prev) => prev + 1);
+    }
+    setErrors({});
   };
 
   const handleTeamNameSubmit = () => {
