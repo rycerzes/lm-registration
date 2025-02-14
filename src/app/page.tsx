@@ -28,8 +28,6 @@ const Home = () => {
   const { toast } = useToast();
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const hasMinimumMembers = kfids.filter(Boolean).length >= 2;
-
   useEffect(() => {
     if (currentStep > 0) {
       setCurrentKfid(kfids[currentStep - 1] || "");
