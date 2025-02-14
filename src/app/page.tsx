@@ -82,7 +82,7 @@ const Home = () => {
   const handleRegister = async () => {
     try {
       const response = await fetch(
-        "https://lm-backend-api.rycerz.es/api/teams/register",
+        "https://lm-backend-api.mlsakiit.com/api/teams/register",
         {
           method: "POST",
           headers: {
